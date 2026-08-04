@@ -239,3 +239,37 @@ class TestContainerAnnotationReferencePayloadSerialization:
         assert isinstance(reloaded.value, dict)
         assert reloaded.value_type == "dict[str,Any]"
         assert reloaded.value == {"h": {"num": [{"image_id": "img1", "annotation_id": "ann1"}]}}
+
+    @pytest.mark.parametrize(
+        "text",
+        ["[20]", "[1, 2]", "[true]", '{"a": 1}', "[1, 2"],
+    )
+    def test_plain_bracket_or_brace_text_stays_string(self, text: str) -> None:
+        """OCR'd text that merely looks like JSON (bracketed citation markers, etc.) must not be reinterpreted."""
+        container = ContainerAnnotation(category_name="word", value=text)
+        assert container.value == text
+        assert isinstance(container.value, str)
+        assert container.value_type == "str"
+
+    def test_json_string_of_list_of_strings_is_still_parsed(self) -> None:
+        """A JSON-encoded ``list[str]`` string must still be decoded into an actual list (matches the field type)."""
+        container = ContainerAnnotation(category_name="test_cat_1", value='["a", "b"]')
+        assert container.value == ["a", "b"]
+        assert container.value_type == "list[str]"
+
+    def test_reference_payload_round_trips_through_json_string(self) -> None:
+        """A genuinely serialized ReferencePayload/AnnotationRef, re-encoded as a JSON string (e.g. after a
+        double round-trip through storage), must still be reconstructed correctly.
+        """
+        payload = ReferencePayload(content={"h": {"num": [AnnotationRef(image_id="img1", annotation_id="ann1")]}})
+        container = ContainerAnnotation(category_name="test_cat_1", value=payload)
+        serialized = container.as_dict()["value"]
+        json_string = json.dumps(serialized)
+
+        reloaded = ContainerAnnotation(category_name="test_cat_1", value=json_string)
+
+        assert isinstance(reloaded.value, ReferencePayload)
+        assert reloaded.value_type == "reference_payload"
+        leaf = reloaded.value.content["h"]["num"][0]  # pylint: disable=E1101
+        assert isinstance(leaf, AnnotationRef)
+        assert leaf == AnnotationRef(image_id="img1", annotation_id="ann1")
