@@ -876,6 +876,18 @@ class ContainerAnnotation(CategoryAnnotation):
         default=None, exclude=True
     )
 
+    @staticmethod
+    def _is_reference_payload_like(node: Any) -> bool:
+        """Return ``True`` if *node* is a dict/list that ``to_json_compatible`` could have produced from an
+        ``AnnotationRef`` or ``ReferencePayload`` instance, i.e. it carries the ``_ref_type`` discriminator
+        (possibly nested inside a plain ``list``).
+        """
+        if isinstance(node, dict):
+            return AnnotationRef.is_dict_annotation_ref(node) or ReferencePayload.is_dict_reference_payload(node)
+        if isinstance(node, list):
+            return all(isinstance(item, str) or ContainerAnnotation._is_reference_payload_like(item) for item in node)
+        return False
+
     @field_validator("value", mode="before")
     @classmethod
     def _deserialize_reference_value(cls, value: Any) -> Any:
@@ -885,6 +897,8 @@ class ContainerAnnotation(CategoryAnnotation):
                 try:
                     parsed = json.loads(stripped)
                 except json.JSONDecodeError:
+                    return value
+                if not cls._is_reference_payload_like(parsed):
                     return value
                 return from_json_compatible(parsed)
 
