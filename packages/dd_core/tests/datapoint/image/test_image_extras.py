@@ -210,7 +210,7 @@ class TestExtrasSerialization:
         """Loading a dict produced before the persist feature existed (no '_persist' key) works."""
         legacy = {"_schema": {"tag": "str"}, "_data": {"tag": "hello"}}
         restored = Extras.from_dict(legacy)
-        assert restored._persist == {}
+        assert not restored._persist
         assert restored.tag == "hello"
         assert restored.as_dict() == {"_schema": {}, "_persist": {}, "_data": {}}
 
